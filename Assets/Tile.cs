@@ -28,7 +28,7 @@ public class Tile : MonoBehaviour
     }
 
     // Helper method to change color based on isWalkable
-    private void UpdateColor()
+    public void UpdateColor()
     {
         if (spriteRenderer != null)
         {
