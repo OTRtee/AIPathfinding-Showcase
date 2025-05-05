@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,62 +15,47 @@ public class Tile : MonoBehaviour
     [SerializeField] private Color startColor = Color.green;
     [SerializeField] private Color endColor = Color.magenta;
 
-    private SpriteRenderer spriteRenderer;
+    private SpriteRenderer _sr;
 
     void Awake()
     {
         // Grab the SpriteRenderer so we can change the tile's color
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        _sr = GetComponent<SpriteRenderer>();
         UpdateColor();
     }
 
-    // Called when the user clicks on this tile
     void OnMouseDown()
     {
-        // If GridManager told us to pick start, do this 
-        if (GridManager.Instance.selectingStart)
-        {
-            SetAsStart();
-            // Turn off start-selcetion mode
-            GridManager.Instance.selectingStart = false;
-        }
-        // ELSE - if picking END, mark this tile as END 
-        else if (GridManager.Instance.selectingEnd)
-        {
-            SetAsEnd();
-            GridManager.Instance.selectingEnd = false;
-        }
-
-        // Otherwise this click just toggles blocked/unblocked 
-        else
-        {
-            // Toggle the boolean
-            isWalkable = !isWalkable;
-
-            // Clearing start/end flags to avoid conflicts 
-            isStart = false;
-            isEnd = false;
-            UpdateColor();
-        }
-          
+        // Delegate all mode logic to the GridManager
+        GridManager.Instance.HandleTileClick(this); 
     }
 
 
-    // Applies the correct color based on current flags.
+
+    // Repaint based on state flags
     public void UpdateColor()
     {
-        if (isStart)
-            spriteRenderer.color = startColor;
-        else if (isEnd)
-            spriteRenderer.color = endColor;
-        else
-            spriteRenderer.color = isWalkable ? walkableColor : blockedColor;
+        if (isStart) _sr.color = startColor;
+        else if (isEnd) _sr.color = endColor;
+        else _sr.color = isWalkable ? walkableColor : blockedColor;
     }
 
-    /// <summary>
-    /// Mark this tile as the BFS start node.
-    /// Ensures it's walkable and un‑marks any previous end.
-    /// </summary>
+
+    // Temporarily paint as BFS wave
+    public void PaintWave(Color waveColor)
+    {
+        _sr.color = waveColor;
+    }
+
+    // Helper to toggle walkable/block state
+    public void ToggleBlocked()
+    {
+        isWalkable = !isWalkable;
+        isStart = isEnd = false;
+        UpdateColor();
+    }
+
+    // Mark this tile as the BFS start node.
     public void SetAsStart()
     {
         isStart = true;
@@ -80,10 +64,8 @@ public class Tile : MonoBehaviour
         UpdateColor();
     }
 
-    /// <summary>
-    /// Mark this tile as the BFS end node.
-    /// Ensures it's walkable and un‑marks any previous start.
-    /// </summary>
+   
+    // Mark this tile as the BFS end node.
     public void SetAsEnd()
     {
         isEnd = true;
