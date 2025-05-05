@@ -241,6 +241,12 @@ MonoBehaviour:
   agentPrefab: {fileID: 1618522169901736570, guid: 099a477edafb2704ebd5bebbe17885ff, type: 3}
   selectingStart: 0
   selectingEnd: 0
+  waveStepDelay: 0.05
+  pathStepDelay: 0.1
+  Btn_SelectStart: {fileID: 1910196074}
+  Btn_SelectEnd: {fileID: 546960107}
+  Btn_ResetGrid: {fileID: 2029350529}
+  Btn_RunBFS: {fileID: 869122524}
 --- !u!4 &244374286
 Transform:
   m_ObjectHideFlags: 0

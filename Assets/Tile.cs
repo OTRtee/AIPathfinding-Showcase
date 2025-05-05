@@ -30,7 +30,22 @@ public class Tile : MonoBehaviour
         GridManager.Instance.HandleTileClick(this); 
     }
 
+    
+    // Completely resets this tile back to its default, 
+    public void ResetState()
+    {
+        isWalkable = true;
+        isStart = false;
+        isEnd = false;
+        UpdateColor();
+    }
 
+
+    // Clears any BFS‐wave colour but preserves start/end/block state
+    public void ClearWave()
+    {
+        UpdateColor();
+    }
 
     // Repaint based on state flags
     public void UpdateColor()

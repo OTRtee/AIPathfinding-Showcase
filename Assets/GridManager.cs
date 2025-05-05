@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI; // For Button
 
 public class GridManager : MonoBehaviour
 {
@@ -23,9 +24,20 @@ public class GridManager : MonoBehaviour
     public bool selectingEnd = false;         // true when waiting for user to pick End
 
 
+    [Header("BFS Timing")]
+    [SerializeField]  public float waveStepDelay = 0.05f;
+    [SerializeField] public float pathStepDelay = 0.10f;
+
+
+    [Header("UI Buttons")]
+    public Button Btn_SelectStart;
+    public Button Btn_SelectEnd;
+    public Button Btn_ResetGrid;
+    public Button Btn_RunBFS;
+
+
     private Tile[,] tiles; // spawned grid
-    private Tile startTile;// store the current start
-    private Tile endTile; // store the current start
+    private Tile startTile, endTile;// store the current start, end
 
 
     void Awake()
@@ -61,20 +73,17 @@ public class GridManager : MonoBehaviour
 
 
 
-    // Resets all tiles to walkable & white
+   // Resets every tile back to unvisited-white, clears start/end, and cancels selection modes
     public void ResetGrid()
     {
-        startTile = endTile = null;
         selectingStart = selectingEnd = false;
+        startTile = endTile = null;
 
         foreach (var t in tiles)
         {
-            t.isWalkable = true;
-            t.isStart = t.isEnd = false;
-            t.UpdateColor();
+            t.ResetState();
         }
     }
-
 
 
     // Central click handler: toggles blocked, or assigns start/end.
@@ -129,85 +138,121 @@ public class GridManager : MonoBehaviour
     // BFS coroutine: waves in yellow, path in blue, then moves Agent.
     private IEnumerator RunBFS_Visual()
     {
+        // disable all controls
+        Btn_SelectStart.interactable =
+        Btn_SelectEnd.interactable =
+        Btn_ResetGrid.interactable =
+        Btn_RunBFS.interactable = false;
+
+
         if (startTile == null || endTile == null)
         {
-            Debug.LogWarning("Select both start and end!");
+            Debug.LogWarning("You must select both Start AND End before running BFS.");
             yield break;
         }
 
         if (!startTile.isWalkable || !endTile.isWalkable)
         {
-            Debug.LogWarning("Start or End is blocked!");
+            Debug.LogWarning("Start or End is blocked.");
             yield break;
         }
-
+        // spawn/move agent
         if (agentInstance == null)
             agentInstance = Instantiate(agentPrefab);
-
         agentInstance.position = startTile.transform.position + Vector3.back;
 
-        var queue = new Queue<Vector2Int>();
+        // Prepare BFS structures
         var visited = new bool[width, height];
-        var parents = new Vector2Int[width, height];
+        var parent = new Vector2Int[width, height];
+        var q = new Queue<Vector2Int>();
 
         Vector2Int s = FindCoords(startTile);
         Vector2Int e = FindCoords(endTile);
 
-        queue.Enqueue(s);
+        q.Enqueue(s);
         visited[s.x, s.y] = true;
-        parents[s.x, s.y] = new Vector2Int(-1, -1);
+        parent[s.x, s.y] = new Vector2Int(-1, -1);
 
-        while (queue.Count > 0)
+        // BFS loop
+        while (q.Count > 0)
         {
-            var cur = queue.Dequeue();
+            var cur = q.Dequeue();
             var tile = tiles[cur.x, cur.y];
 
+            // closed
             if (!tile.isStart && !tile.isEnd)
-                tile.PaintWave(Color.yellow);
+                tile.PaintWave(new Color(1f, 0.65f, 0f)); // orange
+            yield return new WaitForSeconds(waveStepDelay);
 
             if (cur == e)
-            {
-                ReconstructPath(parents, s, e);
-                yield break;
-            }
+                break;
 
+            // open
             foreach (var nb in GetNeighbors(cur))
             {
                 if (!visited[nb.x, nb.y])
                 {
                     visited[nb.x, nb.y] = true;
-                    parents[nb.x, nb.y] = cur;
-                    queue.Enqueue(nb);
+                    parent[nb.x, nb.y] = cur;
+                    var openTile = tiles[nb.x, nb.y];
+                    if (!openTile.isEnd)
+                        openTile.PaintWave(Color.yellow);
+                    q.Enqueue(nb);
                 }
             }
-
-            yield return new WaitForSeconds(0.05f);
         }
 
-        Debug.Log("No path found!");
-    }
-
-    // Walks back from end→start via parents[], colors path blue, then kicks off Agent movement.
-    private void ReconstructPath(Vector2Int[,] parents, Vector2Int s, Vector2Int e)
-    {
+        // rebuild path (green)
         var path = new List<Vector2Int>();
-        var cur = e;
-        while (cur.x != -1)
+        var pcur = e;
+        while (pcur.x != -1)
         {
-            path.Add(cur);
-            cur = parents[cur.x, cur.y];
+            path.Add(pcur);
+            pcur = parent[pcur.x, pcur.y];
         }
         path.Reverse();
 
         foreach (var p in path)
         {
-            var t = tiles[p.x, p.y];
-            if (!t.isStart && !t.isEnd)
-                t.PaintWave(Color.blue);
+            var pt = tiles[p.x, p.y];
+            if (!pt.isStart && !pt.isEnd)
+                pt.PaintWave(Color.green);
+            yield return new WaitForSeconds(pathStepDelay);
         }
 
-        StartCoroutine(MoveAgentAlong(path));
+        // move agent
+        yield return StartCoroutine(MoveAgentAlong(path));
+
+    FINISH:
+        // re-enable all controls
+        Btn_SelectStart.interactable =
+        Btn_SelectEnd.interactable =
+        Btn_ResetGrid.interactable =
+        Btn_RunBFS.interactable = true;
     }
+
+
+    //// Walks back from end→start via parents[], colors path blue, then kicks off Agent movement.
+    //private void ReconstructPath(Vector2Int[,] parents, Vector2Int s, Vector2Int e)
+    //{
+    //    var path = new List<Vector2Int>();
+    //    var cur = e;
+    //    while (cur.x != -1)
+    //    {
+    //        path.Add(cur);
+    //        cur = parents[cur.x, cur.y];
+    //    }
+    //    path.Reverse();
+
+    //    foreach (var p in path)
+    //    {
+    //        var t = tiles[p.x, p.y];
+    //        if (!t.isStart && !t.isEnd)
+    //            t.PaintWave(Color.blue);
+    //    }
+
+    //    StartCoroutine(MoveAgentAlong(path));
+    //}
 
     // Moves agentInstance tile-by-tile along the final path.
     private IEnumerator MoveAgentAlong(List<Vector2Int> path)
@@ -215,13 +260,13 @@ public class GridManager : MonoBehaviour
         foreach (var p in path)
         {
             var target = tiles[p.x, p.y].transform.position + Vector3.back;
-            float elapsed = 0f, duration = 0.2f;
-            var from = agentInstance.position;
+            var start = agentInstance.position;
+            float t = 0, dur = 0.2f;
 
-            while (elapsed < duration)
+            while (t < dur)
             {
-                elapsed += Time.deltaTime;
-                agentInstance.position = Vector3.Lerp(from, target, elapsed / duration);
+                t += Time.deltaTime;
+                agentInstance.position = Vector3.Lerp(start, target, t / dur);
                 yield return null;
             }
             agentInstance.position = target;
