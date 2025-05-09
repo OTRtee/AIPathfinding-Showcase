@@ -30,8 +30,8 @@ public class Tile : MonoBehaviour
         GridManager.Instance.HandleTileClick(this); 
     }
 
-    
-    // Completely resets this tile back to its default, 
+
+   // Completely resets this tile back to default (white, walkable).
     public void ResetState()
     {
         isWalkable = true;

@@ -7,6 +7,11 @@ public class GridManager : MonoBehaviour
 {
     public static GridManager Instance; // Tiles can check selectingStart/selectingEnd
 
+    public enum SearchMode {BFS,AStar }
+    [Header("Algorithm Selection")]
+    public SearchMode currentMode = SearchMode.BFS;
+    public Button Btn_ToggleMode;
+    public Text Txt_ModeLabel;
 
     [Header("Grid Settings")]
     [SerializeField] private int width = 10;    // Grid columns
@@ -20,20 +25,19 @@ public class GridManager : MonoBehaviour
 
 
     [Header("Selection Mode")]
-    public bool selectingStart = false;         // true when waiting for user to pick Start
-    public bool selectingEnd = false;         // true when waiting for user to pick End
+    public bool selectingStart, selectingEnd;
 
-
-    [Header("BFS Timing")]
-    [SerializeField]  public float waveStepDelay = 0.05f;
-    [SerializeField] public float pathStepDelay = 0.10f;
+    [Header("BFS/A* Timing")]
+    public float waveStepDelay = 0.05f;
+    public float pathStepDelay = 0.10f;
 
 
     [Header("UI Buttons")]
     public Button Btn_SelectStart;
     public Button Btn_SelectEnd;
     public Button Btn_ResetGrid;
-    public Button Btn_RunBFS;
+    public Button Btn_SoftReset;
+    public Button Btn_RunSearch;
 
 
     private Tile[,] tiles; // spawned grid
@@ -50,6 +54,25 @@ public class GridManager : MonoBehaviour
     void Start()
     {
         GenerateGrid();
+
+        // wire up mode toggle
+        Btn_ToggleMode.onClick.AddListener(() =>
+        {
+            currentMode = (currentMode == SearchMode.BFS)
+                            ? SearchMode.AStar
+                            : SearchMode.BFS;
+            Txt_ModeLabel.text = currentMode == SearchMode.BFS
+                                    ? "Mode: BFS"
+                                    : "Mode: A*";
+        });
+        Txt_ModeLabel.text = "Mode: BFS";
+
+        // wire up buttons
+        Btn_SelectStart.onClick.AddListener(SelectStartMode);
+        Btn_SelectEnd.onClick.AddListener(SelectEndMode);
+        Btn_ResetGrid.onClick.AddListener(ResetGrid);
+        Btn_SoftReset.onClick.AddListener(SoftReset);
+        Btn_RunSearch.onClick.AddListener(RunSearchVisualWrapper);
     }
 
 
@@ -78,11 +101,14 @@ public class GridManager : MonoBehaviour
     {
         selectingStart = selectingEnd = false;
         startTile = endTile = null;
+        foreach (var t in tiles) t.ResetState();
+    }
 
-        foreach (var t in tiles)
-        {
-            t.ResetState();
-        }
+    public void SoftReset()
+    {
+        selectingStart = selectingEnd = false;
+        startTile = endTile = null;
+        foreach (var t in tiles) t.ClearWave();
     }
 
 
@@ -128,46 +154,63 @@ public class GridManager : MonoBehaviour
 
 
     // Called by the Run BFS UI button
-    public void RunBFSVisualWrapper()
+    public void RunSearchVisualWrapper()
     {
-        StartCoroutine(RunBFS_Visual());
+        if (currentMode == SearchMode.BFS)
+            StartCoroutine(RunBFS_Visual());
+        else
+            StartCoroutine(RunAStar_Visual());
     }
 
+    private void DisableUI()
+    {
+        Btn_SelectStart.interactable =
+        Btn_SelectEnd.interactable =
+        Btn_ResetGrid.interactable =
+        Btn_SoftReset.interactable =
+        Btn_RunSearch.interactable =
+        Btn_ToggleMode.interactable = false;
+    }
+
+    private void EnableUI()
+    {
+        Btn_SelectStart.interactable =
+        Btn_SelectEnd.interactable =
+        Btn_ResetGrid.interactable =
+        Btn_SoftReset.interactable =
+        Btn_RunSearch.interactable =
+        Btn_ToggleMode.interactable = true;
+    }
 
 
     // BFS coroutine: waves in yellow, path in blue, then moves Agent.
     private IEnumerator RunBFS_Visual()
     {
-        // disable all controls
-        Btn_SelectStart.interactable =
-        Btn_SelectEnd.interactable =
-        Btn_ResetGrid.interactable =
-        Btn_RunBFS.interactable = false;
-
+        // clear any old wave colours
+        foreach (var t in tiles) t.ClearWave();
+        DisableUI();
 
         if (startTile == null || endTile == null)
         {
-            Debug.LogWarning("You must select both Start AND End before running BFS.");
-            yield break;
+            Debug.LogWarning("Select both start and end!");
+            EnableUI(); yield break;
         }
 
         if (!startTile.isWalkable || !endTile.isWalkable)
         {
-            Debug.LogWarning("Start or End is blocked.");
-            yield break;
+            Debug.LogWarning("Start or end is blocked!");
+            EnableUI(); yield break;
         }
-        // spawn/move agent
-        if (agentInstance == null)
-            agentInstance = Instantiate(agentPrefab);
+
+        if (agentInstance == null) agentInstance = Instantiate(agentPrefab);
         agentInstance.position = startTile.transform.position + Vector3.back;
 
-        // Prepare BFS structures
         var visited = new bool[width, height];
         var parent = new Vector2Int[width, height];
         var q = new Queue<Vector2Int>();
 
-        Vector2Int s = FindCoords(startTile);
-        Vector2Int e = FindCoords(endTile);
+        Vector2Int s = FindCoords(startTile),
+                   e = FindCoords(endTile);
 
         q.Enqueue(s);
         visited[s.x, s.y] = true;
@@ -202,77 +245,132 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // rebuild path (green)
+        // rebuild & paint path
         var path = new List<Vector2Int>();
-        var pcur = e;
-        while (pcur.x != -1)
-        {
-            path.Add(pcur);
-            pcur = parent[pcur.x, pcur.y];
-        }
+        for (var p = e; p.x != -1; p = parent[p.x, p.y])
+            path.Add(p);
         path.Reverse();
 
         foreach (var p in path)
         {
-            var pt = tiles[p.x, p.y];
-            if (!pt.isStart && !pt.isEnd)
-                pt.PaintWave(Color.green);
+            var t = tiles[p.x, p.y];
+            if (!t.isStart && !t.isEnd)
+                t.PaintWave(Color.green);
             yield return new WaitForSeconds(pathStepDelay);
         }
 
-        // move agent
         yield return StartCoroutine(MoveAgentAlong(path));
-
-    FINISH:
-        // re-enable all controls
-        Btn_SelectStart.interactable =
-        Btn_SelectEnd.interactable =
-        Btn_ResetGrid.interactable =
-        Btn_RunBFS.interactable = true;
+        EnableUI();
     }
 
+    // —— A* Coroutine —— 
+    private IEnumerator RunAStar_Visual()
+    {
+        foreach (var t in tiles) t.ClearWave();
+        DisableUI();
 
-    //// Walks back from end→start via parents[], colors path blue, then kicks off Agent movement.
-    //private void ReconstructPath(Vector2Int[,] parents, Vector2Int s, Vector2Int e)
-    //{
-    //    var path = new List<Vector2Int>();
-    //    var cur = e;
-    //    while (cur.x != -1)
-    //    {
-    //        path.Add(cur);
-    //        cur = parents[cur.x, cur.y];
-    //    }
-    //    path.Reverse();
+        if (startTile == null || endTile == null)
+        {
+            Debug.LogWarning("Select both start and end!");
+            EnableUI(); yield break;
+        }
+        if (!startTile.isWalkable || !endTile.isWalkable)
+        {
+            Debug.LogWarning("Start or end is blocked!");
+            EnableUI(); yield break;
+        }
 
-    //    foreach (var p in path)
-    //    {
-    //        var t = tiles[p.x, p.y];
-    //        if (!t.isStart && !t.isEnd)
-    //            t.PaintWave(Color.blue);
-    //    }
+        if (agentInstance == null) agentInstance = Instantiate(agentPrefab);
+        agentInstance.position = startTile.transform.position + Vector3.back;
 
-    //    StartCoroutine(MoveAgentAlong(path));
-    //}
+        var open = new SimplePriorityQueue<Vector2Int>();
+        var closed = new HashSet<Vector2Int>();
+        var parent = new Dictionary<Vector2Int, Vector2Int>();
+        var gScore = new Dictionary<Vector2Int, float>();
+        var fScore = new Dictionary<Vector2Int, float>();
 
-    // Moves agentInstance tile-by-tile along the final path.
+        Vector2Int s = FindCoords(startTile),
+                   e = FindCoords(endTile);
+
+        gScore[s] = 0;
+        fScore[s] = Heuristic(s, e);
+        open.Enqueue(s, fScore[s]);
+        parent[s] = new Vector2Int(-1, -1);
+
+        while (open.Count > 0)
+        {
+            var cur = open.Dequeue();
+            closed.Add(cur);
+
+            // paint closed (cyan)
+            var closedT = tiles[cur.x, cur.y];
+            if (!closedT.isStart && !closedT.isEnd)
+                closedT.PaintWave(Color.cyan);
+            yield return new WaitForSeconds(waveStepDelay);
+
+            if (cur == e) break;
+
+            foreach (var nb in GetNeighbors(cur))
+            {
+                if (closed.Contains(nb)) continue;
+
+                float tentativeG = gScore[cur] + 1;
+                if (!gScore.ContainsKey(nb) || tentativeG < gScore[nb])
+                {
+                    parent[nb] = cur;
+                    gScore[nb] = tentativeG;
+                    fScore[nb] = tentativeG + Heuristic(nb, e);
+
+                    if (!open.Contains(nb))
+                        open.Enqueue(nb, fScore[nb]);
+
+                    // paint open (yellow)
+                    var oT = tiles[nb.x, nb.y];
+                    if (!oT.isEnd)
+                        oT.PaintWave(Color.yellow);
+                }
+            }
+        }
+
+        // rebuild & paint path
+        var path = new List<Vector2Int>();
+        for (var p = e; p.x != -1; p = parent[p])
+            path.Add(p);
+        path.Reverse();
+
+        foreach (var p in path)
+        {
+            var t = tiles[p.x, p.y];
+            if (!t.isStart && !t.isEnd)
+                t.PaintWave(Color.green);
+            yield return new WaitForSeconds(pathStepDelay);
+        }
+
+        yield return StartCoroutine(MoveAgentAlong(path));
+        EnableUI();
+    }
+
+    private float Heuristic(Vector2Int a, Vector2Int b)
+    {
+        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+    }
+
     private IEnumerator MoveAgentAlong(List<Vector2Int> path)
     {
         foreach (var p in path)
         {
-            var target = tiles[p.x, p.y].transform.position + Vector3.back;
-            var start = agentInstance.position;
-            float t = 0, dur = 0.2f;
-
-            while (t < dur)
+            var tgt = tiles[p.x, p.y].transform.position + Vector3.back;
+            var frm = agentInstance.position;
+            float t = 0, d = 0.2f;
+            while (t < d)
             {
                 t += Time.deltaTime;
-                agentInstance.position = Vector3.Lerp(start, target, t / dur);
+                agentInstance.position = Vector3.Lerp(frm, tgt, t / d);
                 yield return null;
             }
-            agentInstance.position = target;
+            agentInstance.position = tgt;
         }
     }
-
 
 
     // find the tile marked
@@ -290,12 +388,10 @@ public class GridManager : MonoBehaviour
     {
         var list = new List<Vector2Int>();
         int x = c.x, y = c.y;
-
         if (y + 1 < height && tiles[x, y + 1].isWalkable) list.Add(new Vector2Int(x, y + 1));
         if (y - 1 >= 0 && tiles[x, y - 1].isWalkable) list.Add(new Vector2Int(x, y - 1));
         if (x - 1 >= 0 && tiles[x - 1, y].isWalkable) list.Add(new Vector2Int(x - 1, y));
         if (x + 1 < width && tiles[x + 1, y].isWalkable) list.Add(new Vector2Int(x + 1, y));
-
         return list;
     }
 
