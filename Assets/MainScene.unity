@@ -240,6 +240,8 @@ MonoBehaviour:
   width: 10
   height: 10
   tilePrefab: {fileID: -6009048889220335317, guid: 25838abd9087c694894526703570a8ce, type: 3}
+  gridLineColor: {r: 0, g: 0, b: 0, a: 0.2}
+  lineWidth: 0.02
   agentPrefab: {fileID: 1618522169901736570, guid: 099a477edafb2704ebd5bebbe17885ff, type: 3}
   selectingStart: 0
   selectingEnd: 0
