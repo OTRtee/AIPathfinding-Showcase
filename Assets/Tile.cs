@@ -1,6 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
 
 public class Tile : MonoBehaviour
 {
@@ -15,6 +16,8 @@ public class Tile : MonoBehaviour
     [SerializeField] private Color startColor = Color.green;
     [SerializeField] private Color endColor = Color.magenta;
 
+    [SerializeField] private TMP_Text _label; 
+
     private SpriteRenderer _sr;
 
     void Awake()
@@ -22,6 +25,23 @@ public class Tile : MonoBehaviour
         // Grab the SpriteRenderer so we can change the tile's color
         _sr = GetComponent<SpriteRenderer>();
         UpdateColor();
+
+        // Only clear label if actually assigned 
+        if (_label != null)
+            ClearLabel();
+    }
+
+    // Show a number on top of the tile
+    public void SetLabel(string text)
+    {
+        if (_label != null)
+            _label.text = text;
+    }
+
+    // Clear any text lavel
+    public void ClearLabel()
+    {
+        _label.text = "";
     }
 
     void OnMouseDown()
@@ -45,6 +65,7 @@ public class Tile : MonoBehaviour
     public void ClearWave()
     {
         UpdateColor();
+        if (_label != null) ClearLabel();
     }
 
     // Repaint based on state flags

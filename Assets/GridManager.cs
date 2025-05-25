@@ -10,7 +10,6 @@ public class GridManager : MonoBehaviour
     public enum SearchMode {BFS,AStar }
     [Header("Algorithm Selection")]
     public SearchMode currentMode = SearchMode.BFS;
-    public Button Btn_ToggleMode;
     public Text Txt_ModeLabel;
 
     [Header("Grid Settings")]
@@ -18,6 +17,11 @@ public class GridManager : MonoBehaviour
     [SerializeField] private int height = 10;   // Grid rows
     [SerializeField] private Tile tilePrefab;   // Tile prefab
 
+
+    [Header("Grid Lines")]
+    [SerializeField] private Color gridLineColor = new Color(0, 0, 0, 0.2f);
+    [SerializeField] private float lineWidth = 0.02f;
+    private GameObject _gridLinesContainer;
 
     [Header("Agent Settings")]
     [SerializeField] private Transform agentPrefab;  // Agent prefab
@@ -38,6 +42,7 @@ public class GridManager : MonoBehaviour
     public Button Btn_ResetGrid;
     public Button Btn_SoftReset;
     public Button Btn_RunSearch;
+    public Button Btn_ToggleMode;
 
 
     private Tile[,] tiles; // spawned grid
@@ -54,6 +59,7 @@ public class GridManager : MonoBehaviour
     void Start()
     {
         GenerateGrid();
+        DrawGridLines();
 
         // wire up mode toggle
         Btn_ToggleMode.onClick.AddListener(() =>
@@ -75,7 +81,45 @@ public class GridManager : MonoBehaviour
         Btn_RunSearch.onClick.AddListener(RunSearchVisualWrapper);
     }
 
+    private void DrawGridLines()
+    {
+       
+        if (_gridLinesContainer != null) Destroy(_gridLinesContainer);
+        _gridLinesContainer = new GameObject("GridLines");
+        _gridLinesContainer.transform.SetParent(transform, false);
 
+        var offset = new Vector2(-width / 2f, -height / 2f);
+
+        // vertical lines
+        for (int x = 0; x <= width; x++)
+        {
+            var go = new GameObject($"V-Line-{x}", typeof(LineRenderer));
+            go.transform.SetParent(_gridLinesContainer.transform, false);
+            var lr = go.GetComponent<LineRenderer>();
+            lr.positionCount = 2;
+            lr.startWidth = lr.endWidth = lineWidth;
+            lr.material = new Material(Shader.Find("Sprites/Default"));
+            lr.startColor = lr.endColor = gridLineColor;
+
+            lr.SetPosition(0, new Vector3(offset.x + x, offset.y, -0.1f));
+            lr.SetPosition(1, new Vector3(offset.x + x, offset.y + height, -0.1f));
+        }
+
+        // horizontal lines
+        for (int y = 0; y <= height; y++)
+        {
+            var go = new GameObject($"H-Line-{y}", typeof(LineRenderer));
+            go.transform.SetParent(_gridLinesContainer.transform, false);
+            var lr = go.GetComponent<LineRenderer>();
+            lr.positionCount = 2;
+            lr.startWidth = lr.endWidth = lineWidth;
+            lr.material = new Material(Shader.Find("Sprites/Default"));
+            lr.startColor = lr.endColor = gridLineColor;
+
+            lr.SetPosition(0, new Vector3(offset.x, offset.y + y, -0.1f));
+            lr.SetPosition(1, new Vector3(offset.x + width, offset.y + y, -0.1f));
+        }
+    }
 
     // Creates a width×height grid centered at (0,0)
     private void GenerateGrid()
@@ -107,8 +151,8 @@ public class GridManager : MonoBehaviour
     public void SoftReset()
     {
         selectingStart = selectingEnd = false;
-        startTile = endTile = null;
-        foreach (var t in tiles) t.ClearWave();
+        foreach (var t in tiles)
+            t.ClearWave();
     }
 
 
@@ -156,6 +200,7 @@ public class GridManager : MonoBehaviour
     // Called by the Run BFS UI button
     public void RunSearchVisualWrapper()
     {
+        Debug.Log("▶ RunSearchVisualWrapper called. mode = " + currentMode);
         if (currentMode == SearchMode.BFS)
             StartCoroutine(RunBFS_Visual());
         else
@@ -302,10 +347,13 @@ public class GridManager : MonoBehaviour
             var cur = open.Dequeue();
             closed.Add(cur);
 
-            // paint closed (cyan)
+            // paint closed (cyan) and show its g-score
             var closedT = tiles[cur.x, cur.y];
             if (!closedT.isStart && !closedT.isEnd)
+            {
                 closedT.PaintWave(Color.cyan);
+                closedT.SetLabel(gScore[cur].ToString("0.0"));
+            }
             yield return new WaitForSeconds(waveStepDelay);
 
             if (cur == e) break;
@@ -328,6 +376,7 @@ public class GridManager : MonoBehaviour
                     var oT = tiles[nb.x, nb.y];
                     if (!oT.isEnd)
                         oT.PaintWave(Color.yellow);
+                    oT.SetLabel(fScore[nb].ToString("0.0"));
                 }
             }
         }
