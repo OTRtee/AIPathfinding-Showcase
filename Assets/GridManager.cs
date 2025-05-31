@@ -1,130 +1,140 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI; // For Button
+using UnityEngine.UI; // For Button + Slider
+using TMPro;
+
+
+
+
+public static class Vec2Extensions
+{
+    public static Vector3 WithZ(this Vector2 v, float z) => new Vector3(v.x, v.y, z);
+}
 
 public class GridManager : MonoBehaviour
 {
-    public static GridManager Instance; // Tiles can check selectingStart/selectingEnd
+    //————————————————————————————————————————————
+    // Singleton
+    //————————————————————————————————————————————
+    public static GridManager Instance;
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
 
-    public enum SearchMode {BFS,AStar }
+    //————————————————————————————————————————————
+    // Types
+    //————————————————————————————————————————————
+    public enum SearchMode { BFS, AStar }
+
+    //————————————————————————————————————————————
+    // Algorithm Selection
+    //————————————————————————————————————————————
     [Header("Algorithm Selection")]
     public SearchMode currentMode = SearchMode.BFS;
+    public Button Btn_ToggleMode;
     public Text Txt_ModeLabel;
 
+    //————————————————————————————————————————————
+    // Grid Settings
+    //————————————————————————————————————————————
     [Header("Grid Settings")]
-    [SerializeField] private int width = 10;    // Grid columns
-    [SerializeField] private int height = 10;   // Grid rows
-    [SerializeField] private Tile tilePrefab;   // Tile prefab
+    [SerializeField] int width = 10;
+    [SerializeField] int height = 10;
+    [SerializeField] Tile tilePrefab;
+    [SerializeField] Transform tileContainer;
 
-
+    //————————————————————————————————————————————
+    // Grid Lines
+    //————————————————————————————————————————————
     [Header("Grid Lines")]
-    [SerializeField] private Color gridLineColor = new Color(0, 0, 0, 0.2f);
-    [SerializeField] private float lineWidth = 0.02f;
-    private GameObject _gridLinesContainer;
+    [SerializeField] Color gridLineColor = new Color(0, 0, 0, 0.2f);
+    [SerializeField] float lineWidth = 0.005f;
+    GameObject _gridLinesContainer;
 
+    //————————————————————————————————————————————
+    // Agent
+    //————————————————————————————————————————————
     [Header("Agent Settings")]
-    [SerializeField] private Transform agentPrefab;  // Agent prefab
-    private Transform agentInstance;   // spawned Agent
+    [SerializeField] Transform agentPrefab;
+    Transform agentInstance;
 
-
+    //————————————————————————————————————————————
+    // Selection
+    //————————————————————————————————————————————
     [Header("Selection Mode")]
     public bool selectingStart, selectingEnd;
 
+    //————————————————————————————————————————————
+    // Timing
+    //————————————————————————————————————————————
     [Header("BFS/A* Timing")]
     public float waveStepDelay = 0.05f;
     public float pathStepDelay = 0.10f;
 
-
+    //————————————————————————————————————————————
+    // UI Buttons
+    //————————————————————————————————————————————
     [Header("UI Buttons")]
     public Button Btn_SelectStart;
     public Button Btn_SelectEnd;
     public Button Btn_ResetGrid;
     public Button Btn_SoftReset;
     public Button Btn_RunSearch;
-    public Button Btn_ToggleMode;
 
+    //————————————————————————————————————————————
+    // Sliders & Labels
+    //————————————————————————————————————————————
+    [Header("Interactive Sliders")]
+    public Slider Slider_GridWidth;
+    public Slider Slider_GridHeight;
+    public Slider Slider_WaveDelay;
+    public Slider Slider_PathDelay;
 
-    private Tile[,] tiles; // spawned grid
-    private Tile startTile, endTile;// store the current start, end
+    [Header("Interactive Labels")]
+    public TMP_Text Label_GridWidth;
+    public TMP_Text Label_GridHeight;
+    public TMP_Text Label_WaveDelay;
+    public TMP_Text Label_PathDelay;
 
+    //————————————————————————————————————————————
+    // Internal State
+    //————————————————————————————————————————————
+    Tile[,] tiles;
+    Tile startTile, endTile;
 
-    void Awake()
-    {
-        //singleton patterm
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
-    }
-
+    //————————————————————————————————————————————
+    // Startup
+    //————————————————————————————————————————————
     void Start()
     {
-        GenerateGrid();
-        DrawGridLines();
-
-        // wire up mode toggle
-        Btn_ToggleMode.onClick.AddListener(() =>
-        {
-            currentMode = (currentMode == SearchMode.BFS)
-                            ? SearchMode.AStar
-                            : SearchMode.BFS;
-            Txt_ModeLabel.text = currentMode == SearchMode.BFS
-                                    ? "Mode: BFS"
-                                    : "Mode: A*";
-        });
-        Txt_ModeLabel.text = "Mode: BFS";
-
-        // wire up buttons
-        Btn_SelectStart.onClick.AddListener(SelectStartMode);
-        Btn_SelectEnd.onClick.AddListener(SelectEndMode);
-        Btn_ResetGrid.onClick.AddListener(ResetGrid);
-        Btn_SoftReset.onClick.AddListener(SoftReset);
-        Btn_RunSearch.onClick.AddListener(RunSearchVisualWrapper);
+        BuildGrid();
+        HookUpUI();
     }
 
-    private void DrawGridLines()
+    //————————————————————————————————————————————
+    // Build / Rebuild
+    //————————————————————————————————————————————
+    void BuildGrid()
     {
-       
+        // clear old
         if (_gridLinesContainer != null) Destroy(_gridLinesContainer);
-        _gridLinesContainer = new GameObject("GridLines");
-        _gridLinesContainer.transform.SetParent(transform, false);
+        foreach (Transform c in tileContainer) Destroy(c.gameObject);
 
-        var offset = new Vector2(-width / 2f, -height / 2f);
+        GenerateTiles();
+        DrawGridLines();
+        FrameCamera();
 
-        // vertical lines
-        for (int x = 0; x <= width; x++)
-        {
-            var go = new GameObject($"V-Line-{x}", typeof(LineRenderer));
-            go.transform.SetParent(_gridLinesContainer.transform, false);
-            var lr = go.GetComponent<LineRenderer>();
-            lr.positionCount = 2;
-            lr.startWidth = lr.endWidth = lineWidth;
-            lr.material = new Material(Shader.Find("Sprites/Default"));
-            lr.startColor = lr.endColor = gridLineColor;
-
-            lr.SetPosition(0, new Vector3(offset.x + x, offset.y, -0.1f));
-            lr.SetPosition(1, new Vector3(offset.x + x, offset.y + height, -0.1f));
-        }
-
-        // horizontal lines
-        for (int y = 0; y <= height; y++)
-        {
-            var go = new GameObject($"H-Line-{y}", typeof(LineRenderer));
-            go.transform.SetParent(_gridLinesContainer.transform, false);
-            var lr = go.GetComponent<LineRenderer>();
-            lr.positionCount = 2;
-            lr.startWidth = lr.endWidth = lineWidth;
-            lr.material = new Material(Shader.Find("Sprites/Default"));
-            lr.startColor = lr.endColor = gridLineColor;
-
-            lr.SetPosition(0, new Vector3(offset.x, offset.y + y, -0.1f));
-            lr.SetPosition(1, new Vector3(offset.x + width, offset.y + y, -0.1f));
-        }
+        UpdateWidthLabel(width);
+        UpdateHeightLabel(height);
+        UpdateWaveDelayLabel(waveStepDelay);
+        UpdatePathDelayLabel(pathStepDelay);
     }
 
-    // Creates a width×height grid centered at (0,0)
-    private void GenerateGrid()
+    void GenerateTiles()
     {
-        // Allocate the array
         tiles = new Tile[width, height];
         var offset = new Vector2(-width / 2f + .5f, -height / 2f + .5f);
 
@@ -132,15 +142,118 @@ public class GridManager : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 var pos = new Vector2(x, y) + offset;
-                var t = Instantiate(tilePrefab, pos, Quaternion.identity);
+                var t = Instantiate(tilePrefab, pos, Quaternion.identity, tileContainer);
                 t.name = $"Tile_{x}_{y}";
                 tiles[x, y] = t;
             }
     }
 
+    void DrawGridLines()
+    {
+        _gridLinesContainer = new GameObject("GridLines");
+        _gridLinesContainer.transform.SetParent(transform, false);
 
+        var off = new Vector2(-width / 2f, -height / 2f);
 
-   // Resets every tile back to unvisited-white, clears start/end, and cancels selection modes
+        // vertical
+        for (int x = 0; x <= width; x++)
+            DrawLine(off + Vector2.right * x,
+                     off + Vector2.right * x + Vector2.up * height);
+
+        // horizontal
+        for (int y = 0; y <= height; y++)
+            DrawLine(off + Vector2.up * y,
+                     off + Vector2.up * y + Vector2.right * width);
+    }
+
+    void DrawLine(Vector2 a, Vector2 b)
+    {
+        var go = new GameObject("Line", typeof(LineRenderer));
+        go.transform.SetParent(_gridLinesContainer.transform, false);
+        var lr = go.GetComponent<LineRenderer>();
+        lr.positionCount = 2;
+        lr.startWidth = lr.endWidth = lineWidth;
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.startColor = lr.endColor = gridLineColor;
+
+        lr.SetPosition(0, a.WithZ(-0.1f));
+        lr.SetPosition(1, b.WithZ(-0.1f));
+    }
+
+    //————————————————————————————————————————————
+    // Camera
+    //————————————————————————————————————————————
+    void FrameCamera()
+    {
+        var cam = Camera.main;
+        cam.orthographic = true;
+        cam.transform.position = new Vector3(0, 0, -10);
+        cam.orthographicSize = Mathf.Max(width, height) / 2f + 1f;
+    }
+
+    //————————————————————————————————————————————
+    // UI Wiring
+    //————————————————————————————————————————————
+    void HookUpUI()
+    {
+        // mode
+        Btn_ToggleMode?.onClick.AddListener(ToggleMode);
+        if (Txt_ModeLabel != null) Txt_ModeLabel.text = "Mode: BFS";
+
+        // buttons
+        Btn_SelectStart?.onClick.AddListener(() => selectingStart = true);
+        Btn_SelectEnd?.onClick.AddListener(() => selectingEnd = true);
+        Btn_ResetGrid?.onClick.AddListener(ResetGrid);
+        Btn_SoftReset?.onClick.AddListener(SoftReset);
+        Btn_RunSearch?.onClick.AddListener(RunSearchVisualWrapper);
+
+        // sliders
+        Slider_GridWidth?.onValueChanged.AddListener(OnWidthSlider);
+        Slider_GridHeight?.onValueChanged.AddListener(OnHeightSlider);
+        Slider_WaveDelay?.onValueChanged.AddListener(v => { waveStepDelay = v; UpdateWaveDelayLabel(v); });
+        Slider_PathDelay?.onValueChanged.AddListener(v => { pathStepDelay = v; UpdatePathDelayLabel(v); });
+
+        if (Slider_GridWidth != null) Slider_GridWidth.value = width;
+        if (Slider_GridHeight != null) Slider_GridHeight.value = height;
+        if (Slider_WaveDelay != null) Slider_WaveDelay.value = waveStepDelay;
+        if (Slider_PathDelay != null) Slider_PathDelay.value = pathStepDelay;
+    }
+
+    void ToggleMode()
+    {
+        currentMode = currentMode == SearchMode.BFS ? SearchMode.AStar : SearchMode.BFS;
+        if (Txt_ModeLabel != null)
+            Txt_ModeLabel.text = currentMode == SearchMode.BFS ? "Mode: BFS" : "Mode: A*";
+    }
+
+    //————————————————————————————————————————————
+    // Slider Callbacks
+    //————————————————————————————————————————————
+    void OnWidthSlider(float v)
+    {
+        width = Mathf.RoundToInt(v);
+        UpdateWidthLabel(width);
+        BuildGrid();
+    }
+
+    void OnHeightSlider(float v)
+    {
+        height = Mathf.RoundToInt(v);
+        UpdateHeightLabel(height);
+        BuildGrid();
+    }
+
+    //————————————————————————————————————————————
+    // Label Helpers
+    //————————————————————————————————————————————
+    void UpdateWidthLabel(float v) { if (Label_GridWidth != null) Label_GridWidth.text = $"W:{v}"; }
+    void UpdateHeightLabel(float v) { if (Label_GridHeight != null) Label_GridHeight.text = $"H:{v}"; }
+    void UpdateWaveDelayLabel(float v) { if (Label_WaveDelay != null) Label_WaveDelay.text = $"Wave:{v:0.00}s"; }
+    void UpdatePathDelayLabel(float v) { if (Label_PathDelay != null) Label_PathDelay.text = $"Path:{v:0.00}s"; }
+
+    //————————————————————————————————————————————
+    // Grid Reset
+    //————————————————————————————————————————————
     public void ResetGrid()
     {
         selectingStart = selectingEnd = false;
@@ -151,63 +264,42 @@ public class GridManager : MonoBehaviour
     public void SoftReset()
     {
         selectingStart = selectingEnd = false;
-        foreach (var t in tiles)
-            t.ClearWave();
+        foreach (var t in tiles) t.ClearWave();
     }
 
-
-    // Central click handler: toggles blocked, or assigns start/end.
+    //————————————————————————————————————————————
+    // Tile Click
+    //————————————————————————————————————————————
     public void HandleTileClick(Tile t)
     {
-        if(selectingStart)
+        if (selectingStart)
         {
-            // Clear Previous
             if (startTile != null) startTile.isStart = false;
-            startTile = t;
-            startTile.SetAsStart();
+            startTile = t; startTile.SetAsStart();
             selectingStart = false;
         }
         else if (selectingEnd)
         {
             if (endTile != null) endTile.isEnd = false;
-            endTile = t;
-            endTile.SetAsEnd();
+            endTile = t; endTile.SetAsEnd();
             selectingEnd = false;
         }
         else
         {
-            //normal toggle
             t.ToggleBlocked();
         }
     }
 
-
-    // UI button hooks:
-    public void SelectStartMode()
-    {
-        selectingStart = true;
-        selectingEnd = false;
-    }
-
-    public void SelectEndMode()
-    {
-        selectingEnd = true;
-        selectingStart = false;
-    }
-
-
-
-    // Called by the Run BFS UI button
+    //————————————————————————————————————————————
+    // Run Search Wrapper
+    //————————————————————————————————————————————
     public void RunSearchVisualWrapper()
     {
-        Debug.Log("▶ RunSearchVisualWrapper called. mode = " + currentMode);
-        if (currentMode == SearchMode.BFS)
-            StartCoroutine(RunBFS_Visual());
-        else
-            StartCoroutine(RunAStar_Visual());
+        if (currentMode == SearchMode.BFS) StartCoroutine(RunBFS_Visual());
+        else StartCoroutine(RunAStar_Visual());
     }
 
-    private void DisableUI()
+    void DisableUI()
     {
         Btn_SelectStart.interactable =
         Btn_SelectEnd.interactable =
@@ -217,7 +309,7 @@ public class GridManager : MonoBehaviour
         Btn_ToggleMode.interactable = false;
     }
 
-    private void EnableUI()
+    void EnableUI()
     {
         Btn_SelectStart.interactable =
         Btn_SelectEnd.interactable =
@@ -226,7 +318,6 @@ public class GridManager : MonoBehaviour
         Btn_RunSearch.interactable =
         Btn_ToggleMode.interactable = true;
     }
-
 
     // BFS coroutine: waves in yellow, path in blue, then moves Agent.
     private IEnumerator RunBFS_Visual()
@@ -399,10 +490,14 @@ public class GridManager : MonoBehaviour
         EnableUI();
     }
 
-    private float Heuristic(Vector2Int a, Vector2Int b)
+
+    // fade any label after 1 second ← added
+    private IEnumerator FadeLabel(Tile t)
     {
-        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+        yield return new WaitForSeconds(1f);
+        t.ClearLabel();
     }
+
 
     private IEnumerator MoveAgentAlong(List<Vector2Int> path)
     {
@@ -443,6 +538,12 @@ public class GridManager : MonoBehaviour
         if (x + 1 < width && tiles[x + 1, y].isWalkable) list.Add(new Vector2Int(x + 1, y));
         return list;
     }
+
+    private float Heuristic(Vector2Int a, Vector2Int b)
+    {
+        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+    }
+
 
     // Single Update method inside the class
     void Update()

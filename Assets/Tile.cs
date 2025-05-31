@@ -5,26 +5,33 @@ using TMPro;
 
 public class Tile : MonoBehaviour
 {
-    // State flags for each tile
-    public bool isWalkable = true; // can our agent walk here?
-    public bool isStart = false; // is this the start tile?
-    public bool isEnd = false; // is this the end tile?
 
     // Configurable colors for each state
     [SerializeField] private Color walkableColor = Color.white;
     [SerializeField] private Color blockedColor = Color.red;
     [SerializeField] private Color startColor = Color.green;
     [SerializeField] private Color endColor = Color.magenta;
-
     [SerializeField] private TMP_Text _label; 
 
     private SpriteRenderer _sr;
+
+    // State flags for each tile
+    public bool isWalkable = true;
+    public bool isStart = false; 
+    public bool isEnd = false;
 
     void Awake()
     {
         // Grab the SpriteRenderer so we can change the tile's color
         _sr = GetComponent<SpriteRenderer>();
         UpdateColor();
+
+        if (_label == null)
+            _label = GetComponentInChildren<TMP_Text>();
+
+
+        // 5% inward padding so grid lines show through
+        transform.localScale = Vector3.one * 0.95f;
 
         // Only clear label if actually assigned 
         if (_label != null)
