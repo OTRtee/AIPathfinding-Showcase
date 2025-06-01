@@ -105,6 +105,11 @@ public class GridManager : MonoBehaviour
     Tile[,] tiles;
     Tile startTile, endTile;
 
+
+    // When true, we are mid‐search and must not rebuild grid or allow width/height changes.
+    private bool isSearching = false;
+
+
     //————————————————————————————————————————————
     // Startup
     //————————————————————————————————————————————
@@ -231,6 +236,7 @@ public class GridManager : MonoBehaviour
     //————————————————————————————————————————————
     void OnWidthSlider(float v)
     {
+        if (isSearching) return;
         width = Mathf.RoundToInt(v);
         UpdateWidthLabel(width);
         BuildGrid();
@@ -238,6 +244,7 @@ public class GridManager : MonoBehaviour
 
     void OnHeightSlider(float v)
     {
+        if (isSearching) return;
         height = Mathf.RoundToInt(v);
         UpdateHeightLabel(height);
         BuildGrid();
@@ -295,28 +302,37 @@ public class GridManager : MonoBehaviour
     //————————————————————————————————————————————
     public void RunSearchVisualWrapper()
     {
+        if (isSearching) return;
         if (currentMode == SearchMode.BFS) StartCoroutine(RunBFS_Visual());
         else StartCoroutine(RunAStar_Visual());
     }
 
     void DisableUI()
     {
+        isSearching = true;
         Btn_SelectStart.interactable =
         Btn_SelectEnd.interactable =
         Btn_ResetGrid.interactable =
         Btn_SoftReset.interactable =
         Btn_RunSearch.interactable =
         Btn_ToggleMode.interactable = false;
+
+        if (Slider_GridWidth != null) Slider_GridWidth.interactable = false;
+        if (Slider_GridHeight != null) Slider_GridHeight.interactable = false;
     }
 
     void EnableUI()
     {
+        isSearching = false;
         Btn_SelectStart.interactable =
         Btn_SelectEnd.interactable =
         Btn_ResetGrid.interactable =
         Btn_SoftReset.interactable =
         Btn_RunSearch.interactable =
         Btn_ToggleMode.interactable = true;
+
+        if (Slider_GridWidth != null) Slider_GridWidth.interactable = true;
+        if (Slider_GridHeight != null) Slider_GridHeight.interactable = true;
     }
 
     // BFS coroutine: waves in yellow, path in blue, then moves Agent.
