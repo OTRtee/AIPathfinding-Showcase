@@ -14,7 +14,7 @@ Sliders – Adjust:
 - Grid Width & Height
 - Wave Delay (search speed)
 - Path Delay (animation speed)
-Toggle Mode – Switch between BFS and A*
+- Toggle Mode – Switch between BFS and A*
 
 How to Run
 1) Open the Unity project in Unity 2021.3.x (or your version).
