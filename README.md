@@ -16,13 +16,13 @@ Sliders – Adjust:
 - Path Delay (animation speed)
 Toggle Mode – Switch between BFS and A*
 
-💾 How to Run
+How to Run
 1) Open the Unity project in Unity 2021.3.x (or your version).
 2) Open the scene Main.unity.
 3) Press Play in the Editor.
 Optionally build to WebGL or Windows for standalone testing.
 
-📚 Documentation
+Documentation
 See the Documentation/ folder for:
 - Critical Reflection
 - Testing & Validation Report
