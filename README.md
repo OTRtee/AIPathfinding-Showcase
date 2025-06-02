@@ -1,6 +1,6 @@
 README – Pathfinding Visualiser (Tony Djikigoue)
 
-- Project Description - 
+Project Description 
 An interactive Unity-based application that visualises BFS and A* pathfinding algorithms. Users can adjust grid size, search speeds, and observe the agent navigating between user-defined start and end tiles.
 
 Controls & Usage:
