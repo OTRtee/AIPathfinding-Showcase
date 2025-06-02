@@ -532,7 +532,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 16, y: -270}
+  m_AnchoredPosition: {x: 14, y: -266}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &226577037
@@ -565,7 +565,7 @@ MonoBehaviour:
     m_Left: 16
     m_Right: 152
     m_Top: 2
-    m_Bottom: 16
+    m_Bottom: 0
   m_ChildAlignment: 0
   m_Spacing: 8
   m_ChildForceExpandWidth: 1
@@ -663,8 +663,8 @@ MonoBehaviour:
   Btn_RunSearch: {fileID: 869122524}
   Slider_GridWidth: {fileID: 296085241}
   Slider_GridHeight: {fileID: 876558752}
-  Slider_WaveDelay: {fileID: 1990711005}
-  Slider_PathDelay: {fileID: 1498519486}
+  Slider_WaveDelay: {fileID: 1498519486}
+  Slider_PathDelay: {fileID: 1990711005}
   Label_GridWidth: {fileID: 1823353602}
   Label_GridHeight: {fileID: 1216082186}
   Label_WaveDelay: {fileID: 1680672836}
@@ -2098,7 +2098,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 27, y: -16}
+  m_AnchoredPosition: {x: 14, y: -16}
   m_SizeDelta: {x: 0, y: 250}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &895753600
